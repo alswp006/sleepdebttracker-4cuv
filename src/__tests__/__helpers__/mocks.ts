@@ -27,8 +27,15 @@ export function mockTds() {
       React.createElement("button", { onClick, ...props }, children),
 
     ListRow: Object.assign(
-      ({ children, onClick, ...props }: any) =>
-        React.createElement("div", { onClick, role: "listitem", ...props }, children),
+      ({ children, onClick, contents, left, right, ...props }: any) =>
+        React.createElement(
+          "div",
+          { onClick, role: "listitem", ...props },
+          left,
+          contents,
+          right,
+          children,
+        ),
       {
         Text: ({ children }: any) => React.createElement("span", null, children),
         Texts: ({ top, bottom, type }: any) =>
@@ -58,8 +65,8 @@ export function mockTds() {
               { role: "alertdialog", "aria-label": title },
               React.createElement("h2", null, title),
               React.createElement("p", null, description),
-              alertButton,
-              React.createElement("button", { onClick: onClose, "aria-label": "닫기" }, "닫기"),
+              alertButton ??
+                React.createElement("button", { onClick: onClose, "aria-label": "닫기" }, "닫기"),
             )
           : null,
       {
