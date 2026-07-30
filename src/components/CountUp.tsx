@@ -18,12 +18,15 @@ export function CountUp({
   typography = "t1",
   durationMs = 700,
   testId,
+  format,
 }: {
   value: number;
   unit?: string;
   typography?: Typography;
   durationMs?: number;
   testId?: string;
+  /** 기본 `${숫자}${unit}` 대신 애니메이션 중간값을 직접 포맷(예: "3시간 0분") */
+  format?: (displayValue: number) => string;
 }) {
   const [display, setDisplay] = useState(0);
   const raf = useRef<number | null>(null);
@@ -65,8 +68,7 @@ export function CountUp({
       }}
     >
       <Paragraph.Text typography={typography}>
-        {formatNumber(display)}
-        {unit}
+        {format ? format(display) : `${formatNumber(display)}${unit}`}
       </Paragraph.Text>
     </span>
   );

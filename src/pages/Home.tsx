@@ -6,6 +6,7 @@ import type { RouteState } from '@/lib/types';
 import { useDashboard } from '@/hooks/useDashboard';
 import { ScreenScaffold } from '../components/ScreenScaffold';
 import { SummaryHero } from '../components/SummaryHero';
+import { CountUp } from '../components/CountUp';
 import { Card } from '../components/Card';
 import { Sparkline } from '../components/Sparkline';
 import { EmptyState, LoadingState } from '../components/StateView';
@@ -70,7 +71,7 @@ export default function Home() {
       <SummaryHero
         testId="debt-hero"
         label="누적 수면 부채"
-        value={<Paragraph.Text typography="t2">{formatMinutesToHM(totalDebt)}</Paragraph.Text>}
+        value={<CountUp value={totalDebt} typography="t2" format={formatMinutesToHM} />}
         caption="최근 14일 기준"
       />
 
