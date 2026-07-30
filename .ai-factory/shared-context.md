@@ -81,6 +81,7 @@ export type LS_KEYS =
     TossRewardAd.tsx
   hooks/
   lib/
+    calc.ts
     storage.ts
     types.ts
     utils.ts
@@ -95,7 +96,8 @@ export type LS_KEYS =
   vite-env.d.ts
 
 ### Exports (src/lib/)
-- storage.ts: export function getItem<T>(key: string): T | null; export function setItem<T>(key: string, value: T): void; export function removeItem(key: string): void
+- calc.ts: export const TARGET_SLEEP_MIN = 480; export const MAX_OVER_OFFSET = 120; export const DEBT_WINDOW_DAYS = 14; export const maxRepayPerDay = TARGET_SLEEP_MIN * 0.25; export function calcSleepMin(bedTime: string, wakeTime: string): number; export function calcDeficit(target: number, actual: number): number; export function calcTotalDebt(records: number[], target: number): number; export function calcRepayDays( debt: number, target: number, weeklyRepay: number ): number
+- storage.ts: export function getItem<T>(key: string): T | null; export function setItem<T>(key: string, value: T): void; export function removeItem(key: string): void; export function safeGet<T>(key: string, fallback: T): T; export function safeSet<T>(key: string, value: T): SaveResult
 - types.ts: export interface SleepRecord; export interface UserSettings; export interface StreakState; export interface SleepTypeResult; export interface RewardUnlock; export type SaveResult = |; export interface RouteState; export type LS_KEYS = | "sdt.records" | "sdt.settings" | "sdt.streak" | "sdt.sleepType" | "sdt.rewardUnlock"
 - utils.ts: export function cn(...classes: (string | boolean | undefined | null)[]): string; export function formatNumber(n: number): string; export function formatCurrency(n: number, currency = 'KRW'): string
 
@@ -114,7 +116,11 @@ export type LS_KEYS =
 - SummaryHero.tsx: SummaryHero
 - TossPurchase.tsx: TossPurchase
 - TossRewardAd.tsx: TossRewardAd
+
+### Module Dependencies (import graph)
+  lib/storage.ts → imports: lib/types
 CRITICAL: Before creating any new function, type, or component, check the list above. If something similar exists, import and use it.
 
 ## Already Implemented (do NOT duplicate or overwrite)
 - 0001: 전역 타입 & RouteState 계약 정의 (files: src/lib/types.ts)
+- 0002: localStorage 안전 헬퍼 + 계산 모듈 (files: src/lib/storage.ts, src/lib/calc.ts)
