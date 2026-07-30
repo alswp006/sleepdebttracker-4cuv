@@ -1,0 +1,491 @@
+[
+  {
+    "id": "0001",
+    "title": "전역 타입 & RouteState 계약 정의",
+    "epic": "Epic 1: Data Layer",
+    "task": {
+      "description": "모든 엔티티 인터페이스와 페이지 간 네비게이션 데이터 계약(RouteState), 저장 결과 타입, localStorage 키 상수 유니온 타입을 순수 타입으로 정의한다. 런타임 코드는 없으며 tsc --noEmit이 통과해야 한다. 모든 상위 레이어(스토리지/계산/페이지)가 이 파일의 타입을 참조한다.",
+      "acceptance_criteria": [
+        "SleepRecord, UserSettings, StreakState, SleepTypeResult, RewardUnlock({report?:string;plan?:string}) 인터페이스 정의",
+        "SaveResult = {ok:true}|{ok:false;reason:'QUOTA'|'INVALID_DURATION'} 정의",
+        "RouteState 정의: '/':{savedDate:string}|undefined, '/record'|'/report'|'/plan'|'/sleep-type'|'/settings':undefined",
+        "LS_KEYS 상수 유니온('sdt.records'|'sdt.settings'|'sdt.streak'|'sdt.sleepType'|'sdt.rewardUnlock') 타입 정의",
+        "tsc --noEmit 통과, 런타임 코드 0줄"
+      ]
+    },
+    "covers": [
+      "Foundational: 전 엔티티 타입 + RouteState 계약"
+    ],
+    "files": [
+      "src/lib/types.ts"
+    ],
+    "definition_of_done": [
+      "모든 인터페이스/타입 export",
+      "런타임 코드 없음(순수 타입)",
+      "앱 컴파일 유지"
+    ],
+    "depends_on": [],
+    "db_schema": "interface SleepRecord{id:string;date:string;bedTime:string;wakeTime:string;actualSleepMin:number;deficitMin:number;createdAt:number} interface UserSettings{targetSleepMin:number;onboarded:boolean} interface StreakState{current:number;best:number;lastCheckDate:string} interface SleepTypeResult{type:'morning'|'evening'|'intermediate';score:number;answeredAt:number} → keys: sdt.records/sdt.settings/sdt.streak/sdt.sleepType/sdt.rewardUnlock",
+    "api_contract": "",
+    "dependencies": [],
+    "ui_requirements": ""
+  },
+  {
+    "id": "0002",
+    "title": "localStorage 안전 헬퍼 + 계산 모듈",
+    "epic": "Epic 1: Data Layer",
+    "task": {
+      "description": "제네릭 safeGet/safeSet 원시 헬퍼(파싱실패·미존재 시 fallback, QuotaExceededError 시 throw 없이 결과 반환)와 SPEC 계산 규칙(수면시간·부채·상환·주간시계열·회복플랜·유형점수)을 결정론적 순수 함수로 캡슐화한다. UI 접근 없음. 모든 페이지가 계산을 재구현하지 못하도록 단일 모듈로 강제한다.",
+      "acceptance_criteria": [
+        "safeGet(key,fallback): 미존재/파싱오류 시 fallback 반환, 예외 미발생(F1-AC7)",
+        "safeSet(key,value): QuotaExceededError catch 후 {ok:false,reason:'QUOTA'} 반환, console.error 미출력(F1-AC6), 성공 시 {ok:true}",
+        "calcSleepMin('23:00','07:00')=480, 기상<취침 시 +24h, 0분/>960분이면 Error('INVALID_DURATION') throw(F1-AC4,F1-AC5)",
+        "calcDeficit=max(-120,target-actual); calcTotalDebt([420,360,480],480)=180, 최근14일 합·하한0(F1-AC3)",
+        "calcRepayDays, calcWeeklySeries(최근7일), calcRecoveryPlan(토/일≤120분,순수), calcSleepType(≥70 morning/≤30 evening/그외 intermediate)(F5-AC2,F7-AC1)"
+      ]
+    },
+    "covers": [
+      "F1-AC3",
+      "F1-AC4",
+      "F1-AC5",
+      "F1-AC6",
+      "F1-AC7",
+      "F5-AC2",
+      "F7-AC1"
+    ],
+    "files": [
+      "src/lib/storage.ts",
+      "src/lib/calc.ts"
+    ],
+    "definition_of_done": [
+      "safeGet/safeSet 예외 안전 규약 확정",
+      "계산 함수 결정론적·순수(동일입력→동일출력)",
+      "상수 TARGET_SLEEP_MIN=480/MAX_OVER_OFFSET=120/DEBT_WINDOW_DAYS=14/maxRepayPerDay=target*0.25 정의",
+      "앱 컴파일 유지"
+    ],
+    "depends_on": [
+      "0001"
+    ],
+    "db_schema": "keys: sdt.records/sdt.settings/sdt.streak/sdt.sleepType/sdt.rewardUnlock (safeGet/safeSet 제네릭 래퍼)",
+    "api_contract": "",
+    "dependencies": [],
+    "ui_requirements": ""
+  },
+  {
+    "id": "0003",
+    "title": "도메인 CRUD: 기록·스트릭·설정/유형/리워드",
+    "epic": "Epic 1: Data Layer",
+    "task": {
+      "description": "safeGet/safeSet + calc 위에 도메인 CRUD를 쌓는다. 기록 upsert(파생값 산출), 스트릭 증가/리셋, 설정·유형결과·리워드 해금 캐시 조회/저장을 제공한다. 페이지가 계산·저장을 재구현하지 못하게 강제하는 최종 데이터 레이어다.",
+      "acceptance_criteria": [
+        "getRecords()/getRecordByDate(date); saveRecord({date,bedTime,wakeTime}): calc로 actualSleepMin/deficitMin 산출, id=date upsert, 신규 시 length+1(420,60)(F1-AC1), 동일date 재호출 length 유지·갱신(F1-AC2)",
+        "updateStreak(today): 어제=lastCheckDate면 current+1·best갱신(F6-AC1), 결측이면 current=1(F6-AC2), 같은날 변동없음(F6-AC3), 최초 current=1,best=1(F6-AC4)",
+        "getSettings/saveSettings(target 360~600 clamp,onboarded); getSleepType/saveSleepType(F7-AC2)",
+        "getRewardUnlock/setRewardUnlock(kind,date): report/plan 당일 해금 캐시(F4-AC2)",
+        "날짜는 문자열 기반, 앱 컴파일 유지"
+      ]
+    },
+    "covers": [
+      "F1-AC1",
+      "F1-AC2",
+      "F6-AC1",
+      "F6-AC2",
+      "F6-AC3",
+      "F6-AC4",
+      "F7-AC2",
+      "F4-AC2"
+    ],
+    "files": [
+      "src/lib/records.ts",
+      "src/lib/streak.ts",
+      "src/lib/settingsStore.ts"
+    ],
+    "definition_of_done": [
+      "saveRecord upsert 검증(신규/덮어쓰기)",
+      "스트릭 경계 로직(증가/리셋/동일일/최초) 검증",
+      "INVALID_DURATION throw 전파, QUOTA 결과 전파",
+      "앱 컴파일 유지"
+    ],
+    "depends_on": [
+      "0002"
+    ],
+    "db_schema": "sdt.records: SleepRecord[]; sdt.streak: StreakState; sdt.settings: UserSettings; sdt.sleepType: SleepTypeResult|null; sdt.rewardUnlock: {report?:string;plan?:string}",
+    "api_contract": "",
+    "dependencies": [],
+    "ui_requirements": ""
+  },
+  {
+    "id": "0004",
+    "title": "화면용 서비스 훅 레이어",
+    "epic": "Epic 2: Services",
+    "task": {
+      "description": "데이터 레이어를 React 컴포넌트에서 소비하기 위한 서비스 훅을 제공한다. 로딩 상태를 포함한 대시보드 집계 조회, 리워드 해금 상태/공개 처리 훅을 캡슐화해 페이지가 계산/저장을 직접 호출하지 않고 훅만 사용하게 한다. 외부 API는 없으며 전부 로컬 데이터 서비스다.",
+      "acceptance_criteria": [
+        "useDashboard(): {loading, totalDebt, repayDays, weeklySeries, streak, records} 반환 — 마운트 시 loading true 후 데이터 교체",
+        "useReward(kind:'report'|'plan'): {unlockedToday:boolean, unlock():void} — getRewardUnlock/setRewardUnlock 래핑, 당일 해금 판정",
+        "useTodayRecord(): 오늘 getRecordByDate 프리필 값 + isEdit 플래그 반환",
+        "모든 훅은 Epic1 헬퍼(records/streak/settingsStore/calc)만 사용, 계산 재구현 금지",
+        "tsc 통과, 앱 컴파일 유지"
+      ]
+    },
+    "covers": [
+      "F3-AC4",
+      "F4-AC2",
+      "F2-AC5"
+    ],
+    "files": [
+      "src/hooks/useDashboard.ts",
+      "src/hooks/useReward.ts",
+      "src/hooks/useTodayRecord.ts"
+    ],
+    "definition_of_done": [
+      "훅이 로딩→데이터 전이 제공",
+      "리워드 해금 판정/저장 캡슐화",
+      "페이지가 데이터 레이어 직접호출 없이 훅만 소비 가능",
+      "앱 컴파일 유지"
+    ],
+    "depends_on": [
+      "0003"
+    ],
+    "db_schema": "",
+    "api_contract": "내부 로컬 서비스 훅 — 외부 API 없음(모든 데이터 localStorage)",
+    "dependencies": [],
+    "ui_requirements": ""
+  },
+  {
+    "id": "0005",
+    "title": "홈/대시보드 페이지 (`/`)",
+    "epic": "Epic 3: Pages",
+    "task": {
+      "description": "누적 부채 히어로·상환 예상일·스트릭 배지·최근 추이를 조립하는 앱 첫 진입 화면. useDashboard 훅만 사용하며 계산은 재구현하지 않는다. 빈 상태/로딩/스파크라인 분기를 처리하고 저장 직후 진입 시 스트릭 축하 Toast를 1회 표시한다.",
+      "acceptance_criteria": [
+        "data-testid='debt-hero' SummaryHero: totalDebt CountUp('3시간 0분'=180분), 부채 t2~t3 강조(F3-AC1,F3-AC6)",
+        "data-testid='repay-card' '회복까지 약 2일'(F3-AC2); data-testid='streak-card' '🔥 {current}일 연속'+최고기록(F6-AC6)",
+        "기록 0건→Asset.ContentIcon+'첫 수면을 기록해보세요'+'기록하기' 버튼(display block), 히어로 '0분'(F3-AC3); 조회 중 스켈레톤(F3-AC4)",
+        "'오늘 기록하기' 버튼(≥44px)→navigate('/record'), 기록 3건↑ Sparkline 최근7일(F3-AC5,F3-AC7)",
+        "location.state.savedDate 존재 & current 7배수면 Toast 1회, console.error 0건(F6-AC5,F3-AC8)"
+      ]
+    },
+    "covers": [
+      "F3-AC1",
+      "F3-AC2",
+      "F3-AC3",
+      "F3-AC4",
+      "F3-AC5",
+      "F3-AC6",
+      "F3-AC7",
+      "F3-AC8",
+      "F6-AC5",
+      "F6-AC6"
+    ],
+    "files": [
+      "src/pages/HomePage.tsx"
+    ],
+    "definition_of_done": [
+      "useDashboard로 히어로/카드/스파크라인 렌더",
+      "빈상태·로딩 분기 처리",
+      "location.state는 RouteState['/']로 캐스팅",
+      "콘솔 에러 0건"
+    ],
+    "depends_on": [
+      "0004"
+    ],
+    "db_schema": "",
+    "api_contract": "",
+    "dependencies": [],
+    "ui_requirements": "Pattern: StatusPanel (SummaryHero + Card 그리드). TDS whitelist: Top, SummaryHero, Amount, Card, Paragraph, Spacing, Button, Badge, Border, FloatingTabBar, EmptyState, AdSlot. Layout: <Top title=수면 부채/><Spacing 16/>; 기록0건→EmptyState 분기; <SummaryHero data-testid='debt-hero' label='누적 수면 부채' value=<Amount 180 unit=분 t1/> caption='최근 14일 기준'/>; Sparkline 기록3건+ 시 히어로 하단; <Spacing 12/><Card data-testid='repay-card'>회복 예상/약 2일</Card>; <Spacing 12/><Card data-testid='streak-card'>연속 기록/5일 <Badge>최고 12일</Badge></Card>; <Spacing 16/><Button variant=fill size=large onClick=navigate('/record')>오늘 기록하기</Button>; <Spacing 24/><AdSlot adGroupId={import.meta.env.VITE_TOSS_AD_GROUP_ID}/>; <FloatingTabBar/>. States: Loading=SummaryHero/Card 스켈레톤(AC-4); Empty=<EmptyState title='첫 수면을 기록해보세요' action=<Button variant=fill>기록하기</Button>/> 히어로 '0분'(AC-3); Error=<Paragraph.Text color=secondary>데이터를 불러오지 못했어요</Paragraph.Text>+<Button variant=weak>다시 시도</Button>. Interactions: 기록하기 탭→generateHapticFeedback({type:'success'})→navigate (≥44px); 탭전환→tickWeak; console.error 0건."
+  },
+  {
+    "id": "0006",
+    "title": "수면 기록 입력 페이지 (`/record`)",
+    "epic": "Epic 3: Pages",
+    "task": {
+      "description": "취침/기상 시간을 BottomSheet 휠로 선택하고 실시간 부족분을 미리보기한 뒤 저장/수정하고 홈으로 이동하는 화면. 하루 1건 upsert이며 오늘 기록이 있으면 프리필+'수정하기' 라벨. 미입력/비정상/저장실패 분기를 처리한다.",
+      "acceptance_criteria": [
+        "BottomSheet 휠 시간선택(텍스트 키보드 미사용, 상단 미가림)(F2-AC6); 오늘 기록 있으면 프리필+버튼 '수정하기'(F2-AC5)",
+        "입력 완료 시 data-testid='deficit-preview' '오늘 부채 60분' 실시간 표시(F2-AC2)",
+        "미입력 제출→인라인 에러 '취침·기상 시간을 모두 선택해주세요'(F2-AC3); 비정상(0분/17h초과) INVALID_DURATION catch→'수면 시간을 확인해주세요'(F2-AC4)",
+        "정상 제출→saveRecord+updateStreak→Toast '기록이 저장됐어요'→navigate('/',{state:{savedDate}})(F2-AC1)",
+        "saveResult.reason==='QUOTA'→AlertDialog '저장 공간이 부족해요. 오래된 기록을 정리해주세요'(닫기 버튼) 화면 유지(F2-AC7); SubmitFooter ≥44px"
+      ]
+    },
+    "covers": [
+      "F2-AC1",
+      "F2-AC2",
+      "F2-AC3",
+      "F2-AC4",
+      "F2-AC5",
+      "F2-AC6",
+      "F2-AC7"
+    ],
+    "files": [
+      "src/pages/RecordPage.tsx"
+    ],
+    "definition_of_done": [
+      "BottomSheet 시간선택+실시간 미리보기 동작",
+      "저장/수정 분기 및 QUOTA AlertDialog 처리",
+      "navigate state는 RouteState['/']로 캐스팅",
+      "콘솔 에러 0건"
+    ],
+    "depends_on": [
+      "0004"
+    ],
+    "db_schema": "",
+    "api_contract": "",
+    "dependencies": [],
+    "ui_requirements": "Pattern: FixedBottomCTA (BottomSheet 시간선택+실시간 미리보기+하단 고정). TDS whitelist: Top, ListRow, BottomSheet, SummaryHero, Amount, Paragraph, Spacing, Button, Toast, AlertDialog. Layout: <Top title=오늘 수면 기록/><Spacing 16/>; <ListRow contents=<ListRow.Texts type='2RowTypeA' top='취침 시간' bottom={bedTime??'선택해주세요'}/> right=<Paragraph.Text st11 secondary>변경</Paragraph.Text> onClick=openBedSheet/>; <ListRow ...top='기상 시간'... onClick=openWakeSheet/>; <Spacing 20/>; 두값 완료 시 <SummaryHero label='오늘 부채' value=<Amount 60 unit=분 t2/>/>; <BottomSheet open onClose>HH:mm 휠</BottomSheet>; 하단 고정 CTA div{position:fixed,bottom:0,padding:16,paddingBottom:'calc(16px + env(safe-area-inset-bottom))',backgroundColor:'var(--tds-color-background)'}<Button variant=fill size=large>{isEdit?'수정하기':'저장하기'}</Button>. States: Loading=ListRow 스켈레톤; Empty=placeholder '선택해주세요'; Error(미입력)=<Paragraph.Text secondary>취침·기상 시간을 모두 선택해주세요</Paragraph.Text>(AC-3)/비정상 '수면 시간을 확인해주세요'(AC-4). Interactions: 선택 완료→tickWeak+미리보기 재계산; 저장성공→success 햅틱→Toast(position=bottom) '기록이 저장됐어요'→navigate; QUOTA→AlertDialog(닫기) 화면 유지."
+  },
+  {
+    "id": "0007",
+    "title": "주간 리포트 페이지 (`/report`, 리워드 게이팅)",
+    "epic": "Epic 3: Pages",
+    "task": {
+      "description": "최근 7일 부채 차트+주간 합계를 리워드 광고 게이팅으로 제공하는 화면. 당일 해금은 캐시로 광고를 생략한다. useReward('report')로 해금 판정, TossRewardAd 시청 완료 시 차트 공개 및 캐시 저장, 광고 실패는 Toast 처리한다.",
+      "acceptance_criteria": [
+        "최근7일 기록 0건→Asset.ContentIcon+'기록이 쌓이면 리포트를 볼 수 있어요'(광고 트리거 미노출)(F4-AC4)",
+        "getRewardUnlock().report===오늘→광고 없이 즉시 차트(F4-AC2); 미해금→TossRewardAd 완료 시 차트 렌더+setRewardUnlock('report',오늘)(F4-AC1)",
+        "광고 실패→Toast '광고를 불러오지 못했어요. 잠시 후 다시 시도해주세요' 미공개·화면 유지(F4-AC5)",
+        "data-testid='weekly-chart' 7개 막대(MiniBar) 값 비례, data-testid='weekly-summary' 합계 '6시간 0분'(360분) 강조(F4-AC3,F4-AC7)",
+        "계산 중 차트 스켈레톤(F4-AC6); 차트 하단 미겹침 AdSlot 1개(F4-AC8); '리포트 보기' ≥44px"
+      ]
+    },
+    "covers": [
+      "F4-AC1",
+      "F4-AC2",
+      "F4-AC3",
+      "F4-AC4",
+      "F4-AC5",
+      "F4-AC6",
+      "F4-AC7",
+      "F4-AC8"
+    ],
+    "files": [
+      "src/pages/ReportPage.tsx"
+    ],
+    "definition_of_done": [
+      "리워드 게이팅+당일 캐시 생략 동작",
+      "calcWeeklySeries 7막대+합계 렌더",
+      "광고 실패 Toast 분기",
+      "콘솔 에러 0건"
+    ],
+    "depends_on": [
+      "0004"
+    ],
+    "db_schema": "",
+    "api_contract": "",
+    "dependencies": [],
+    "ui_requirements": "Pattern: OverlayPulse (TossRewardAd 게이팅→차트 공개). TDS whitelist: Top, TossRewardAd, Card, Paragraph, Amount, Spacing, Button, Toast, EmptyState, AdSlot, FloatingTabBar. Layout: <Top title=주간 리포트/><Spacing 16/>; 미해금&&기록있음→<TossRewardAd slotId={import.meta.env.VITE_TOSS_AD_SLOT_ID}><Card data-testid='weekly-chart'>최근 7일 부채 <Spacing 12/> 7 bars(MiniBar 값 비례)</Card><Spacing 12/><Card data-testid='weekly-summary'>주간 합계 <Amount 360 unit=분 t2/>(6시간 0분)</Card></TossRewardAd>; <Spacing 24/><AdSlot adGroupId={import.meta.env.VITE_TOSS_AD_GROUP_ID}/> 콘텐츠 하단 미겹침(AC-8); <FloatingTabBar/>. States: Loading=차트 스켈레톤 후 렌더(AC-6); Empty(기록0)=<EmptyState title='기록이 쌓이면 리포트를 볼 수 있어요'/> 광고 트리거 미노출(AC-4); Error(광고실패)=Toast '광고를 불러오지 못했어요. 잠시 후 다시 시도해주세요' 미공개(AC-5). Interactions: 당일 해금 캐시(sdt.rewardUnlock.report===오늘)→광고 생략 즉시 차트(AC-2)."
+  },
+  {
+    "id": "0008",
+    "title": "회복 플랜 페이지 (`/plan`, 리워드 게이팅)",
+    "epic": "Epic 3: Pages",
+    "task": {
+      "description": "누적 부채 기반 주말(토/일) 회복 플랜을 규칙으로 산출해 리워드 광고 게이팅으로 제공하는 화면. 부채 0이면 광고 트리거 대신 유지 안내, 미해금이면 TossRewardAd 완료 후 플랜 카드 표시 및 캐시 저장, 광고 실패는 Toast 처리. 결과에 '통계 기반 참고용' 고지를 표기한다.",
+      "acceptance_criteria": [
+        "totalDebt===0→광고 트리거 미노출, '수면 부채가 없어요! 지금 패턴을 유지하세요'(F5-AC3)",
+        "미해금→TossRewardAd 완료 시 calcRecoveryPlan 카드(토/일 분배, 하루≤120분) 표시+setRewardUnlock('plan',오늘)(F5-AC1)",
+        "광고 실패→Toast '광고를 불러오지 못했어요' 미공개·화면 유지(F5-AC4); 당일 해금 캐시 시 광고 생략 즉시 표시(F5-AC2)",
+        "플랜 하단 '통계 기반 참고용' 고지 문구 표기; 차트 하단 미겹침 AdSlot 1개",
+        "'플랜 보기' ≥44px, 콘솔 에러 0건"
+      ]
+    },
+    "covers": [
+      "F5-AC1",
+      "F5-AC2",
+      "F5-AC3",
+      "F5-AC4"
+    ],
+    "files": [
+      "src/pages/PlanPage.tsx"
+    ],
+    "definition_of_done": [
+      "부채0 유지안내 분기",
+      "리워드 게이팅+당일 캐시 생략",
+      "calcRecoveryPlan 카드 렌더",
+      "콘솔 에러 0건"
+    ],
+    "depends_on": [
+      "0004"
+    ],
+    "db_schema": "",
+    "api_contract": "",
+    "dependencies": [],
+    "ui_requirements": "Pattern: OverlayPulse (TossRewardAd 게이팅→플랜 공개). TDS whitelist: Top, TossRewardAd, Card, ListRow, Paragraph, Amount, Spacing, Button, Toast, EmptyState, AdSlot, FloatingTabBar. Layout: <Top title=회복 플랜/><Spacing 16/>; totalDebt===0→<EmptyState title='수면 부채가 없어요! 지금 패턴을 유지하세요'/>(광고 미노출); 부채>0 미해금→<TossRewardAd slotId={import.meta.env.VITE_TOSS_AD_SLOT_ID}><Card>주말 회복 플랜: 토요일 +Nmin / 일요일 +Mmin(ListRow 2행)</Card></TossRewardAd>; <Spacing 12/><Paragraph.Text st11 color=secondary>통계 기반 참고용이에요</Paragraph.Text>; <Spacing 24/><AdSlot adGroupId={import.meta.env.VITE_TOSS_AD_GROUP_ID}/> 콘텐츠 하단 미겹침; <FloatingTabBar/>. States: Loading=플랜 카드 스켈레톤; Empty(부채0)=유지 안내(AC-3); Error(광고실패)=Toast '광고를 불러오지 못했어요' 미공개(AC-4). Interactions: 당일 해금 캐시(sdt.rewardUnlock.plan===오늘)→광고 생략 즉시 플랜(AC-2); 색상 var(--tds-color-*)만."
+  },
+  {
+    "id": "0009",
+    "title": "수면 유형 진단 페이지 (`/sleep-type`)",
+    "epic": "Epic 3: Pages",
+    "task": {
+      "description": "아침형/저녁형 진단 문항에 응답하면 규칙 기반 합산 점수(0~100)로 유형을 판정해 결과를 저장/재조회하는 화면. 결과는 calcSleepType로 결정론적 산출하며 '통계 기반 참고용' 고지를 표기한다. 재방문 시 저장된 결과를 즉시 표시한다.",
+      "acceptance_criteria": [
+        "문항 응답 후 '결과 보기'→calcSleepType(answers) 점수 산출(≥70 morning/≤30 evening/그외 intermediate)(F7-AC1)",
+        "결과 카드에 유형·점수 표시+saveSleepType 저장, '통계 기반 참고용' 고지 표기",
+        "재방문 시 getSleepType 존재하면 결과 즉시 표시(F7-AC2)",
+        "전 문항 미응답 시 '결과 보기' 비활성 또는 인라인 안내",
+        "인터랙티브 요소 ≥44px, 콘솔 에러 0건"
+      ]
+    },
+    "covers": [
+      "F7-AC1",
+      "F7-AC2"
+    ],
+    "files": [
+      "src/pages/SleepTypePage.tsx"
+    ],
+    "definition_of_done": [
+      "문항 UI+calcSleepType 판정",
+      "결과 저장/재조회",
+      "참고용 고지 표기",
+      "콘솔 에러 0건"
+    ],
+    "depends_on": [
+      "0004"
+    ],
+    "db_schema": "sdt.sleepType: SleepTypeResult|null",
+    "api_contract": "",
+    "dependencies": [],
+    "ui_requirements": "Pattern: 설문(Chip/Switch 선택) → 결과 카드. TDS whitelist: Top, ListRow, Chip, Paragraph, Spacing, Button, Card, Badge, EmptyState, FloatingTabBar. Layout: <Top title=수면 유형 진단/><Spacing 16/>; 문항 리스트 각 <ListRow contents=문항 right=<Chip> 보기 선택>; <Spacing 20/>; 하단 <Button variant=fill size=large>결과 보기</Button>; 결과 상태→<Card>유형(아침형/중간형/저녁형)+<Badge>{score}점</Badge>+설명</Card><Spacing 12/><Paragraph.Text st11 secondary>통계 기반 참고용이에요</Paragraph.Text>; <FloatingTabBar/>. States: 재방문(getSleepType 존재)=결과 카드 즉시 표시(AC-2); 미응답=결과 보기 비활성. Interactions: Chip 선택→tickWeak; 결과 보기→success 햅틱, calcSleepType 판정+saveSleepType 저장. 색상 var(--tds-color-*)만, 이모지 금지 Asset.ContentIcon 사용."
+  },
+  {
+    "id": "0010",
+    "title": "온보딩/설정 페이지 (`/settings`)",
+    "epic": "Epic 3: Pages",
+    "task": {
+      "description": "최초 1회 안내와 목표 수면 시간(360~600분) 조절을 제공하는 설정 화면. saveSettings로 target clamp 저장 및 onboarded 플래그를 갱신한다. 목표 변경 시 부채 계산 기준이 바뀌므로 즉시 반영되며 변경 완료 Toast를 표시한다.",
+      "acceptance_criteria": [
+        "목표 수면 시간 조절 UI(360~600분, clamp)→saveSettings 저장, 변경 시 Toast '목표를 저장했어요'",
+        "최초 진입 시 안내 카드 표시, 완료 시 onboarded=true 저장",
+        "저장된 target이 홈/기록 부채 계산에 즉시 반영(getSettings 사용)",
+        "인터랙티브 요소 ≥44px, 색상 var(--tds-color-*)만, 콘솔 에러 0건"
+      ]
+    },
+    "covers": [
+      "F1: settings persistence",
+      "Onboarding target 조절"
+    ],
+    "files": [
+      "src/pages/SettingsPage.tsx"
+    ],
+    "definition_of_done": [
+      "target clamp 저장",
+      "onboarded 플래그 갱신",
+      "저장 후 계산 기준 반영",
+      "콘솔 에러 0건"
+    ],
+    "depends_on": [
+      "0004"
+    ],
+    "db_schema": "sdt.settings: UserSettings{targetSleepMin:number(360~600);onboarded:boolean}",
+    "api_contract": "",
+    "dependencies": [],
+    "ui_requirements": "Pattern: 설정 리스트 + 목표 조절. TDS whitelist: Top, ListRow, Paragraph, Spacing, Button, BottomSheet, Toast, Card, FloatingTabBar. Layout: <Top title=설정/><Spacing 16/>; 최초 진입 시 <Card>수면 부채를 기록하고 회복 플랜을 받아보세요 안내</Card>; <ListRow contents=<ListRow.Texts type='2RowTypeA' top='목표 수면 시간' bottom={`${hours}시간 ${mins}분`}/> right=변경 onClick=openTargetSheet/>; <BottomSheet> 360~600분 휠(30분 단위) </BottomSheet>; <FloatingTabBar/>. States: 최초(onboarded=false)=안내 카드 노출; 이후=설정 리스트만. Interactions: 목표 변경 완료→tickWeak→saveSettings(clamp 360~600)→Toast(position=bottom) '목표를 저장했어요'. 색상 var(--tds-color-*)만."
+  },
+  {
+    "id": "0011",
+    "title": "라우터 배선 & 하단 네비 & 최초 진입 분기",
+    "epic": "Epic 4: Integration",
+    "task": {
+      "description": "react-router-dom으로 6개 라우트를 App.tsx에 연결하고 template FloatingTabBar(홈/리포트/플랜/설정 4탭)를 배선한다. /record는 탭 없는 풀스크린. 최초 진입(onboarded=false) 시 /settings 온보딩으로 분기한다. main.tsx는 @AI:ANCHOR 보호로 수정 금지.",
+      "acceptance_criteria": [
+        "Routes: '/'→HomePage, '/record'→RecordPage, '/report'→ReportPage, '/plan'→PlanPage, '/sleep-type'→SleepTypePage, '/settings'→SettingsPage 모두 연결",
+        "FloatingTabBar 4탭(홈/리포트/플랜/설정) 활성탭 컬러 틴트, /record는 탭 미표시",
+        "최초 진입 getSettings().onboarded===false면 온보딩 분기 처리",
+        "navigate state는 RouteState 타입으로 캐스팅, main.tsx 미수정",
+        "앱 컴파일 유지, 모든 라우트 정상 이동"
+      ]
+    },
+    "covers": [
+      "F3-AC5 nav",
+      "전 라우트 연결",
+      "최초 진입 분기"
+    ],
+    "files": [
+      "src/App.tsx",
+      "src/components/FloatingTabBar.tsx"
+    ],
+    "definition_of_done": [
+      "6개 라우트 정의·연결",
+      "FloatingTabBar 4탭 배선",
+      "온보딩 분기",
+      "main.tsx 미수정, 컴파일 유지"
+    ],
+    "depends_on": [
+      "0005",
+      "0006",
+      "0007",
+      "0008",
+      "0009",
+      "0010"
+    ],
+    "db_schema": "",
+    "api_contract": "",
+    "dependencies": [
+      "react-router-dom"
+    ],
+    "ui_requirements": "네비게이션: src/components/FloatingTabBar 4탭 — 홈(/), 리포트(/report), 플랜(/plan), 설정(/settings). 활성탭 컬러 틴트만. /record는 탭 없는 풀스크린 진입. 탭 전환 시 tickWeak. position:fixed 하단 요소 paddingBottom:'calc(Npx + env(safe-area-inset-bottom))'. TDS 컴포넌트 여백 유지, Tailwind 여백 금지."
+  },
+  {
+    "id": "0012",
+    "title": "광고 배치 & 리워드 게이팅 검증 & 최종 UX 폴리시",
+    "epic": "Epic 4: Integration",
+    "task": {
+      "description": "AdSlot 배너를 콘텐츠와 겹치지 않게 홈/리포트/플랜 섹션 하단에 배치하고, TossRewardAd 게이팅+당일 캐시 생략 흐름을 라우트 전반에서 검증한다. 다크모드 색상 토큰·safe-area·haptic·콘솔 에러 0건을 최종 점검하는 폴리시 패킷이다.",
+      "acceptance_criteria": [
+        "AdSlot(VITE_TOSS_AD_GROUP_ID) 홈/리포트/플랜 하단 콘텐츠 미겹침 배치, 라우트 이동 후 잔존 없음",
+        "TossRewardAd(VITE_TOSS_AD_SLOT_ID) 게이팅+당일 해금 캐시 생략이 report/plan에서 동작 확인",
+        "HEX 하드코딩 0건(var(--tds-color-*)/TDS만), 다크모드 정상; position:fixed 하단 요소 safe-area padding 적용",
+        "주요 CTA success 햅틱·탭/Chip tickWeak 적용, 프로덕션 빌드 console.error 0건",
+        "최종 빌드 통과, 번들 100MB 미만"
+      ]
+    },
+    "covers": [
+      "F4-AC8",
+      "F3-AC8",
+      "전역 UX/광고/다크모드 폴리시"
+    ],
+    "files": [
+      "src/App.tsx",
+      "src/index.css"
+    ],
+    "definition_of_done": [
+      "광고 배치 비침투 검증",
+      "다크모드/safe-area/haptic 폴리시",
+      "콘솔 에러 0건, 빌드 통과"
+    ],
+    "depends_on": [
+      "0011"
+    ],
+    "db_schema": "",
+    "api_contract": "",
+    "dependencies": [],
+    "ui_requirements": "광고: 배너 <AdSlot adGroupId={import.meta.env.VITE_TOSS_AD_GROUP_ID}/> 섹션 사이/결과 뒤 비침투 배치; 보상형 <TossRewardAd slotId={import.meta.env.VITE_TOSS_AD_SLOT_ID}>{children}</TossRewardAd>는 report/plan 결과 게이트에만. 색상 var(--tds-color-*) 또는 TDS 컴포넌트만(HEX 금지, 다크모드 필수). position:fixed 하단 요소 paddingBottom:'calc(Npx + env(safe-area-inset-bottom))'. 주요 CTA generateHapticFeedback({type:'success'}), 탭/Chip tickWeak. index.css는 TDS 미제공 flex/grid 레이아웃에만 커스텀 허용."
+  },
+  {
+    "id": "0013",
+    "title": "라우팅 와이어링 + Provider 연결 + 통합 폴리시",
+    "epic": "4",
+    "task": {
+      "description": "App.tsx에 모든 페이지(HomePage.tsx, RecordPage.tsx, ReportPage.tsx, PlanPage.tsx, SleepTypePage.tsx, SettingsPage.tsx) Route 연결, main.tsx 수정 금지(@AI:ANCHOR), 광고/결제 연동, 최종 UX 폴리시",
+      "acceptance_criteria": [
+        "App.tsx에 모든 페이지 Route가 정의되어 있다",
+        "모든 navigate() 대상에 Route가 존재한다",
+        "main.tsx의 TDSMobileAITProvider/BrowserRouter가 유지되어 있다",
+        "앱이 '/' 경로에서 정상 렌더링된다"
+      ]
+    },
+    "files": [
+      "src/App.tsx"
+    ],
+    "covers": [],
+    "definition_of_done": [
+      "typecheck pass",
+      "all routes accessible",
+      "no console errors"
+    ],
+    "depends_on": [
+      "0012"
+    ]
+  }
+]
