@@ -82,7 +82,10 @@ export type LS_KEYS =
   hooks/
   lib/
     calc.ts
+    records.ts
+    settingsStore.ts
     storage.ts
+    streak.ts
     types.ts
     utils.ts
   main.tsx
@@ -97,7 +100,10 @@ export type LS_KEYS =
 
 ### Exports (src/lib/)
 - calc.ts: export const TARGET_SLEEP_MIN = 480; export const MAX_OVER_OFFSET = 120; export const DEBT_WINDOW_DAYS = 14; export const maxRepayPerDay = TARGET_SLEEP_MIN * 0.25; export function calcSleepMin(bedTime: string, wakeTime: string): number; export function calcDeficit(target: number, actual: number): number; export function calcTotalDebt(records: number[], target: number): number; export function calcRepayDays( debt: number, target: number, weeklyRepay: number ): number
+- records.ts: export function getRecords(): SleepRecord[]; export function getRecordByDate(date: string): SleepRecord | null; export function saveRecord(input:
+- settingsStore.ts: export function getSettings(): UserSettings; export function saveSettings(settings: UserSettings): SaveResult; export function getSleepType(): SleepTypeResult | null; export function saveSleepType(result: SleepTypeResult): SaveResult; export function getRewardUnlock(): RewardUnlock; export function setRewardUnlock( kind: "report" | "plan", date: string ): SaveResult
 - storage.ts: export function getItem<T>(key: string): T | null; export function setItem<T>(key: string, value: T): void; export function removeItem(key: string): void; export function safeGet<T>(key: string, fallback: T): T; export function safeSet<T>(key: string, value: T): SaveResult
+- streak.ts: export function getStreak(): StreakState; export function updateStreak(today: string): StreakState
 - types.ts: export interface SleepRecord; export interface UserSettings; export interface StreakState; export interface SleepTypeResult; export interface RewardUnlock; export type SaveResult = |; export interface RouteState; export type LS_KEYS = | "sdt.records" | "sdt.settings" | "sdt.streak" | "sdt.sleepType" | "sdt.rewardUnlock"
 - utils.ts: export function cn(...classes: (string | boolean | undefined | null)[]): string; export function formatNumber(n: number): string; export function formatCurrency(n: number, currency = 'KRW'): string
 
@@ -118,9 +124,13 @@ export type LS_KEYS =
 - TossRewardAd.tsx: TossRewardAd
 
 ### Module Dependencies (import graph)
+  lib/records.ts → imports: lib/types, lib/storage, lib/calc
+  lib/settingsStore.ts → imports: lib/types, lib/storage
   lib/storage.ts → imports: lib/types
+  lib/streak.ts → imports: lib/types, lib/storage
 CRITICAL: Before creating any new function, type, or component, check the list above. If something similar exists, import and use it.
 
 ## Already Implemented (do NOT duplicate or overwrite)
 - 0001: 전역 타입 & RouteState 계약 정의 (files: src/lib/types.ts)
 - 0002: localStorage 안전 헬퍼 + 계산 모듈 (files: src/lib/storage.ts, src/lib/calc.ts)
+- 0003: 도메인 CRUD: 기록·스트릭·설정/유형/리워드 (files: src/lib/records.ts, src/lib/streak.ts, src/lib/settingsStore.ts)
