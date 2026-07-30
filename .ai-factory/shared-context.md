@@ -138,3 +138,4 @@ CRITICAL: Before creating any new function, type, or component, check the list a
 - 0002: localStorage 안전 헬퍼 + 계산 모듈 (files: src/lib/storage.ts, src/lib/calc.ts)
 - 0003: 도메인 CRUD: 기록·스트릭·설정/유형/리워드 (files: src/lib/records.ts, src/lib/streak.ts, src/lib/settingsStore.ts)
 - 0004: 화면용 서비스 훅 레이어 (files: src/hooks/useDashboard.ts, src/hooks/useReward.ts, src/hooks/useTodayRecord.ts)
+- 0005: 홈/대시보드 페이지 (`/`) (files: src/pages/HomePage.tsx)
