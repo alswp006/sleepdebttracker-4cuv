@@ -159,3 +159,4 @@ CRITICAL: Before creating any new function, type, or component, check the list a
 - 0010: 온보딩/설정 페이지 (`/settings`) (files: src/pages/SettingsPage.tsx)
 - 0013: 라우팅 와이어링 + Provider 연결 + 통합 폴리시 (files: src/App.tsx)
 - 0011: 라우터 배선 & 하단 네비 & 최초 진입 분기 (files: src/App.tsx, src/components/FloatingTabBar.tsx)
+- 0012: 광고 배치 & 리워드 게이팅 검증 & 최종 UX 폴리시 (files: src/App.tsx, src/index.css)
