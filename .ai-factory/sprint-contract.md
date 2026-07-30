@@ -1,24 +1,24 @@
-# Sprint Contract: 라우터 배선 & 하단 네비 & 최초 진입 분기
+# Packet 0012: 광고 배치 & 리워드 게이팅 재통합
 
 ## 목표
-react-router-dom으로 6개 라우트를 App.tsx에 연결, FloatingTabBar(홈/리포트/플랜/설정 4탭)를 배선, 최초 진입 시 /settings 온보딩으로 분기.
+0013 확정 라우팅 위에 광고·게이팅을 재배선. 배너는 콘텐츠 겹침 없이 섹션 사이/결과 뒤에 배치, 리워드 게이팅은 `sdt.rewardUnlock` 캐시로 해금 판정.
 
-## 만들 항목
-1. **src/App.tsx** — BrowserRouter + Routes로 6개 경로 정의 (/, /record, /report, /plan, /sleep-type, /settings)
-2. **src/components/FloatingTabBar.tsx** 배선 — /, /report, /plan, /settings 4탭만 표시, /record는 탭 숨김
-3. **최초 진입 분기 로직** — UserSettings의 `onboarded===false`이면 useEffect에서 /settings으로 리다이렉트
+## 변경 파일
+1. **src/pages/report.tsx** — 결과 뒤 `<AdSlot />` + `<TossRewardAd>` 게이팅
+2. **src/pages/plan.tsx** — 계획 콘텐츠를 `<TossRewardAd>` 게이팅
+3. **src/pages/home.tsx** — 섹션 사이 `<AdSlot />` 배치
+4. **src/components/RewardGate.tsx** (신규) — 리워드 해금 상태 확인 + 게이트 UI
 
 ## 사용 타입 (src/lib/types.ts import)
-- `UserSettings` (targetSleepMin, onboarded)
-- `RouteState` (타입 안전 내비게이션용)
+- `RewardUnlock` (report?: string, plan?: string)
+- `SleepRecord`, `StreakState` (페이지 데이터)
 
-## 검증 방법
-1. `npm run dev` → 각 탭(/,/report,/plan,/settings) 클릭 시 페이지 전환
-2. `/record` 직접 접근 → FloatingTabBar 없음, 타이틀만
-3. localStorage에서 onboarded=false 삭제 후 새로고침 → /settings으로 리다이렉트
-4. 각 페이지 조회 후 콘솔에 unhandled promise rejection 없음 (SDK try/catch 필수)
+## 검증
+1. `pnpm test src/__tests__/packet-0012.test.ts` 통과
+2. 각 페이지에서 광고/게이팅 렌더 확인 (흰 화면 아님)
+3. 0013 라우팅과 충돌 없음
 
 ## 절대 금지
-- main.tsx 수정 (@AI:ANCHOR 보호)
-- 페이지 파일 이동/삭제 (기존 Home.tsx 등은 유지)
-- FloatingTabBar 컴포넌트 재구현 (이미 존재하는 파일 재사용)
+- main.tsx / 라우팅 수정 (@AI:ANCHOR)
+- UI 커스텀 (TDS AdSlot/TossRewardAd 기본 스타일만)
+- localStorage 키 변경

@@ -158,3 +158,4 @@ CRITICAL: Before creating any new function, type, or component, check the list a
 - 0009: 수면 유형 진단 페이지 (`/sleep-type`) (files: src/pages/SleepTypePage.tsx)
 - 0010: 온보딩/설정 페이지 (`/settings`) (files: src/pages/SettingsPage.tsx)
 - 0013: 라우팅 와이어링 + Provider 연결 + 통합 폴리시 (files: src/App.tsx)
+- 0011: 라우터 배선 & 하단 네비 & 최초 진입 분기 (files: src/App.tsx, src/components/FloatingTabBar.tsx)
