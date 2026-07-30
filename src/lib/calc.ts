@@ -72,6 +72,18 @@ export function calcRecoveryPlan(options: {
   };
 }
 
+export interface WeekendRecoveryPlan {
+  saturdayMin: number;
+  sundayMin: number;
+}
+
+export function calcWeekendRecoveryPlan(totalDebt: number): WeekendRecoveryPlan {
+  const debt = Math.max(0, totalDebt);
+  const saturdayMin = Math.min(debt, MAX_OVER_OFFSET);
+  const sundayMin = Math.min(Math.max(0, debt - saturdayMin), MAX_OVER_OFFSET);
+  return { saturdayMin, sundayMin };
+}
+
 export function calcSleepType(
   efficiency: number
 ): "morning" | "evening" | "intermediate" {
