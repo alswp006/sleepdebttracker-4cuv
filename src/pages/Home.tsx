@@ -1,73 +1,139 @@
-import { Top, Paragraph, Spacing, ListRow, Button } from '@toss/tds-mobile';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Top, Paragraph, Spacing, Button, Toast } from '@toss/tds-mobile';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { generateHapticFeedback } from '@apps-in-toss/web-framework';
+import type { RouteState } from '@/lib/types';
+import { useDashboard } from '@/hooks/useDashboard';
 import { ScreenScaffold } from '../components/ScreenScaffold';
 import { SummaryHero } from '../components/SummaryHero';
 import { Card } from '../components/Card';
+import { Sparkline } from '../components/Sparkline';
+import { EmptyState, LoadingState } from '../components/StateView';
+import { FloatingTabBar } from '../components/FloatingTabBar';
+import { AdSlot } from '../components/AdSlot';
 
-/**
- * Golden Home page — 대시보드/탭-루트 골든 레퍼런스.
- *
- * 다른 페이지를 쓸 때 이 패턴을 모방하라:
- * - ScreenScaffold로 감싼다(raw fragment 골격 금지) — safe-area + 100dvh 자동 처리.
- * - 화면 최상단에 SummaryHero로 시각 앵커를 만든다('휑함'의 가장 큰 원인은 앵커 부재).
- *   데이터가 있으면 value에 <Amount value={n} unit="원" typography="t1" />로 핵심 숫자를 크게 박아라.
- * - 1차 진입 액션은 SummaryHero 카드 내부 버튼(display="block", 전체폭)에 둔다.
- *   → 화면 중앙 부유/좌측 글자폭 버튼 금지. 하단 TabBar가 있으면 SubmitFooter와 겹치므로 카드 안에.
- * - 핵심 정보는 raw <div>가 아니라 Card로 묶어 위계를 만든다.
- * - 하단 탭이 필요하면(2~5탭): bottom={<FloatingTabBar items={[{label,path}...]} />}.
- *   ('TDS TabBar'는 존재하지 않는다 — 직접 만들지 말고 FloatingTabBar를 써라.)
- * - 카피는 CLAUDE.md "카피 규칙 — AI 냄새 금지"를 따른다: 기능 나열식 홍보 문구·상투구·
- *   generic 버튼("시작하기") 금지. 이 파일의 예시 문구도 앱 맥락에 맞게 교체 대상이다.
- *
- * Scaffold tokens (replaced by scaffold-toss.ts at project creation):
- *   SleepDebtTracker -> the app's display name
- *   수면 부채를 누적 계산하고, 주말 몰아자기 회복 플랜을 제시하는 수면 건강 관리 앱    -> the one-line description
- */
-
-// ⚠ 이 목록은 골격 예시다 — 앱의 실제 콘텐츠(핵심 지표·최근 기록·바로가기)로 반드시 교체하라.
-// '간편한 사용/빠른 처리' 같은 기능 나열식 홍보 문구는 카피 규칙(CLAUDE.md "AI 냄새 금지") 위반이다.
-// 사용자가 이 화면에서 실제로 확인할 정보를 넣어라 — 아래처럼 데이터가 사는 행으로.
-const HIGHLIGHTS = [
-  { title: '오늘', description: '아직 기록이 없어요' },
-  { title: '이번 주', description: '기록 3건 · 평균 12분' },
+const TAB_ITEMS = [
+  { label: '홈', path: '/' },
+  { label: '리포트', path: '/report' },
+  { label: '플랜', path: '/plan' },
+  { label: '설정', path: '/settings' },
 ];
+
+function formatMinutesToHM(totalMin: number): string {
+  const clamped = Math.max(0, Math.round(totalMin));
+  const hours = Math.floor(clamped / 60);
+  const minutes = clamped % 60;
+  return `${hours}시간 ${minutes}분`;
+}
+
+function safeHaptic() {
+  try {
+    Promise.resolve(generateHapticFeedback({ type: 'success' })).catch(() => {});
+  } catch {
+    /* WebView 밖에서는 throw — 무시 */
+  }
+}
 
 export default function Home() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { loading, totalDebt, repayDays, weeklySeries, streak, records } = useDashboard();
+
+  const [showCelebration, setShowCelebration] = useState(false);
+
+  useEffect(() => {
+    const state = (location.state as RouteState['/']) ?? undefined;
+    if (state?.savedDate && streak.current > 0 && streak.current % 7 === 0) {
+      setShowCelebration(true);
+    }
+    // 진입 시 1회만 판정 — 이후 재렌더에는 재실행하지 않는다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const goToRecord = () => {
+    safeHaptic();
+    navigate('/record');
+  };
+
+  if (loading) {
+    return (
+      <ScreenScaffold top={<Top title={<Top.TitleParagraph>수면 부채</Top.TitleParagraph>} />}>
+        <LoadingState rows={4} />
+      </ScreenScaffold>
+    );
+  }
+
+  const isEmpty = records.length === 0;
 
   return (
-    <ScreenScaffold
-      top={<Top title={<Top.TitleParagraph>SleepDebtTracker</Top.TitleParagraph>} />}
-    >
-      {/* 시각 앵커: 헤드라인 + 카드 내 진입 버튼(부유 금지, display="block" 전체폭).
-          데이터 앱이면 value를 <Amount typography="t1" />(핵심 숫자)로 교체하라. */}
+    <ScreenScaffold top={<Top title={<Top.TitleParagraph>수면 부채</Top.TitleParagraph>} />}>
       <SummaryHero
-        label="SleepDebtTracker"
-        value={<Paragraph.Text typography="t2">수면 부채를 누적 계산하고, 주말 몰아자기 회복 플랜을 제시하는 수면 건강 관리 앱</Paragraph.Text>}
-        caption="로그인 없이 바로 쓸 수 있어요"
-        action={
-          // 라벨은 앱의 핵심 행동 동사로 교체하라 — "연봉 계산하기"/"기록 남기기" 등.
-          // generic "시작하기"/"확인"은 카피 규칙 위반. onClick도 실제 첫 화면 경로로.
-          <Button variant="fill" display="block" onClick={() => navigate('/')}>
-            첫 결과 보기
-          </Button>
-        }
-        testId="home-hero"
+        testId="debt-hero"
+        label="누적 수면 부채"
+        value={<Paragraph.Text typography="t2">{formatMinutesToHM(totalDebt)}</Paragraph.Text>}
+        caption="최근 14일 기준"
       />
 
-      <Spacing size={24} />
+      {!isEmpty && records.length >= 3 && (
+        <>
+          <Spacing size={16} />
+          <Sparkline data={weeklySeries} />
+        </>
+      )}
 
-      {/* 핵심 정보는 Card로 묶기(raw div 금지) — 위계 생성 */}
-      <Card testId="home-highlights">
-        {HIGHLIGHTS.map((h, idx) => (
-          <ListRow
-            key={idx}
-            contents={<ListRow.Texts type="2RowTypeA" top={h.title} bottom={h.description} />}
-          />
-        ))}
-      </Card>
+      <Spacing size={16} />
+
+      {isEmpty ? (
+        <EmptyState
+          title="첫 수면을 기록해보세요"
+          description="취침·기상 시각만 입력하면 부채가 계산돼요"
+          action={
+            <Button variant="weak" display="block" onClick={goToRecord}>
+              기록하기
+            </Button>
+          }
+        />
+      ) : (
+        <>
+          <Card testId="repay-card">
+            <Paragraph.Text typography="st11">회복 예상</Paragraph.Text>
+            <Spacing size={4} />
+            <Paragraph.Text typography="t5">
+              {Number.isFinite(repayDays) ? `회복까지 약 ${repayDays}일` : '회복까지 남은 기간을 계산할 수 없어요'}
+            </Paragraph.Text>
+          </Card>
+
+          <Spacing size={12} />
+
+          <Card testId="streak-card">
+            <Paragraph.Text typography="st11">연속 기록</Paragraph.Text>
+            <Spacing size={4} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Paragraph.Text typography="t5">🔥 {streak.current}일 연속</Paragraph.Text>
+              <Paragraph.Text typography="st13">최고 {streak.best}일</Paragraph.Text>
+            </div>
+          </Card>
+
+          <Spacing size={16} />
+
+          <Button variant="fill" size="large" display="block" onClick={goToRecord}>
+            오늘 기록하기
+          </Button>
+        </>
+      )}
 
       <Spacing size={24} />
+      <AdSlot adGroupId={import.meta.env.VITE_TOSS_AD_GROUP_ID ?? ''} />
+      <Spacing size={16} />
+
+      <Toast
+        open={showCelebration}
+        text={`${streak.current}일 연속 기록을 달성했어요`}
+        position="bottom"
+        onClose={() => setShowCelebration(false)}
+      />
+
+      <FloatingTabBar items={TAB_ITEMS} />
     </ScreenScaffold>
   );
 }
