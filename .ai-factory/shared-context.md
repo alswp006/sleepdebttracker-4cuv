@@ -106,6 +106,7 @@ export type LS_KEYS =
     reward-ad.css
   types/
   vite-env.d.ts
+  vitest.d.ts
 
 ### Exports (src/lib/)
 - calc.ts: export const TARGET_SLEEP_MIN = 480; export const MAX_OVER_OFFSET = 120; export const DEBT_WINDOW_DAYS = 14; export const maxRepayPerDay = TARGET_SLEEP_MIN * 0.25; export function calcSleepMin(bedTime: string, wakeTime: string): number; export function calcDeficit(target: number, actual: number): number; export function calcTotalDebt(records: number[], target: number): number; export function calcRepayDays( debt: number, target: number, weeklyRepay: number ): number
@@ -152,7 +153,8 @@ CRITICAL: Before creating any new function, type, or component, check the list a
 - 0004: 화면용 서비스 훅 레이어 (files: src/hooks/useDashboard.ts, src/hooks/useReward.ts, src/hooks/useTodayRecord.ts)
 - 0005: 홈/대시보드 페이지 (`/`) (files: src/pages/HomePage.tsx)
 - 0006: 수면 기록 입력 페이지 (`/record`) (files: src/pages/RecordPage.tsx)
+- 0007: 주간 리포트 페이지 (`/report`, 리워드 게이팅) (files: src/pages/ReportPage.tsx)
 - 0008: 회복 플랜 페이지 (`/plan`, 리워드 게이팅) (files: src/pages/PlanPage.tsx)
 - 0009: 수면 유형 진단 페이지 (`/sleep-type`) (files: src/pages/SleepTypePage.tsx)
 - 0010: 온보딩/설정 페이지 (`/settings`) (files: src/pages/SettingsPage.tsx)
-- 0007: 주간 리포트 페이지 (`/report`, 리워드 게이팅) (files: src/pages/ReportPage.tsx)
+- 0013: 라우팅 와이어링 + Provider 연결 + 통합 폴리시 (files: src/App.tsx)
