@@ -146,3 +146,4 @@ CRITICAL: Before creating any new function, type, or component, check the list a
 - 0004: 화면용 서비스 훅 레이어 (files: src/hooks/useDashboard.ts, src/hooks/useReward.ts, src/hooks/useTodayRecord.ts)
 - 0005: 홈/대시보드 페이지 (`/`) (files: src/pages/HomePage.tsx)
 - 0006: 수면 기록 입력 페이지 (`/record`) (files: src/pages/RecordPage.tsx)
+- 0008: 회복 플랜 페이지 (`/plan`, 리워드 게이팅) (files: src/pages/PlanPage.tsx)
