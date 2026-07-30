@@ -319,19 +319,41 @@ export function mockTossRewardAd() {
 }
 
 // ── react-router-dom ──
-// Preserve actual router + override useNavigate for assertion.
+// Preserve actual router + override useNavigate/useLocation for assertion.
+//
+// Design: the vi.mock below is at THIS file's top level, so it is hoisted and
+// applies to every test file that imports mocks.ts — meaning it is registered
+// in time even for statically-hoisted SUT imports (vi.doMock would run too late
+// for those, leaving real hooks bound before the mock is installed).
+//
+// But NOT every test wants a stubbed router: packets that verify real
+// navigation / useLocation-driven active state deliberately skip mockRouter()
+// and need the genuine hooks. So the factory always delegates to the REAL
+// react-router-dom (calling the actual hooks to keep Router context + hook
+// order intact) and only substitutes the RETURN VALUE when mockRouter()/mockAll()
+// flipped `routerStubEnabled`. Forks-pool isolation makes the flag per-file.
+let routerStubEnabled = false;
+
 export function mockRouter() {
-  vi.mock("react-router-dom", async () => {
-    const actual = await vi.importActual<typeof import("react-router-dom")>(
-      "react-router-dom",
-    );
-    return {
-      ...actual,
-      useNavigate: () => mockNavigate,
-      useLocation: () => mockLocation,
-    };
-  });
+  routerStubEnabled = true;
 }
+
+vi.mock("react-router-dom", async () => {
+  const actual = await vi.importActual<typeof import("react-router-dom")>(
+    "react-router-dom",
+  );
+  return {
+    ...actual,
+    useNavigate: () => {
+      const realNavigate = actual.useNavigate();
+      return routerStubEnabled ? mockNavigate : realNavigate;
+    },
+    useLocation: () => {
+      const realLocation = actual.useLocation();
+      return routerStubEnabled ? mockLocation : realLocation;
+    },
+  };
+});
 
 // ── Convenience: mock everything ──
 export function mockAll() {
