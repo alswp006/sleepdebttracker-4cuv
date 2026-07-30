@@ -1,14 +1,20 @@
-// TDD: Placeholder for implementation
-// Should return: {date, bedTime, wakeTime, actualSleepMin, deficitMin, isEdit}
+import { useState } from "react";
+import { getRecordByDate } from "@/lib/records";
+
+function todayStr(): string {
+  return new Date().toISOString().split("T")[0];
+}
 
 export function useTodayRecord() {
-  // Implementation pending
+  const [date] = useState(todayStr);
+  const [record] = useState(() => getRecordByDate(date));
+
   return {
-    date: new Date().toISOString().split("T")[0],
-    bedTime: "",
-    wakeTime: "",
-    actualSleepMin: 0,
-    deficitMin: 0,
-    isEdit: false,
+    date,
+    bedTime: record?.bedTime ?? "",
+    wakeTime: record?.wakeTime ?? "",
+    actualSleepMin: record?.actualSleepMin ?? 0,
+    deficitMin: record?.deficitMin ?? 0,
+    isEdit: record !== null,
   };
 }
