@@ -95,8 +95,11 @@ export type LS_KEYS =
   main.tsx
   pages/
     Home.tsx
+    PlanPage.tsx
     RecordPage.tsx
     ReportPage.tsx
+    SettingsPage.tsx
+    SleepTypePage.tsx
     __TdsGallery.tsx
   styles/
     globals.css
@@ -135,8 +138,11 @@ export type LS_KEYS =
   lib/storage.ts → imports: lib/types
   lib/streak.ts → imports: lib/types, lib/storage
   pages/Home.tsx → imports: lib/types, hooks/useDashboard
+  pages/PlanPage.tsx → imports: hooks/useDashboard, hooks/useReward, lib/calc, components/ScreenScaffold, components/Card, components/StateView, components/TossRewardAd, components/AdSlot, components/FloatingTabBar
   pages/RecordPage.tsx → imports: lib/types, hooks/useTodayRecord, lib/records, lib/streak, lib/calc, lib/utils, components/ScreenScaffold, components/BottomCTA, components/Card
   pages/ReportPage.tsx → imports: hooks/useWeeklyReport, hooks/useReward, components/ScreenScaffold, components/Card, components/MiniBar, components/Amount, components/StateView, components/TossRewardAd, components/AdSlot, components/FloatingTabBar
+  pages/SettingsPage.tsx → imports: lib/settingsStore, lib/types, components/ScreenScaffold, components/Card, components/FloatingTabBar
+  pages/SleepTypePage.tsx → imports: lib/settingsStore, lib/calc, lib/types, components/ScreenScaffold, components/Card, components/BottomCTA
 CRITICAL: Before creating any new function, type, or component, check the list above. If something similar exists, import and use it.
 
 ## Already Implemented (do NOT duplicate or overwrite)
@@ -148,3 +154,4 @@ CRITICAL: Before creating any new function, type, or component, check the list a
 - 0006: 수면 기록 입력 페이지 (`/record`) (files: src/pages/RecordPage.tsx)
 - 0008: 회복 플랜 페이지 (`/plan`, 리워드 게이팅) (files: src/pages/PlanPage.tsx)
 - 0009: 수면 유형 진단 페이지 (`/sleep-type`) (files: src/pages/SleepTypePage.tsx)
+- 0010: 온보딩/설정 페이지 (`/settings`) (files: src/pages/SettingsPage.tsx)

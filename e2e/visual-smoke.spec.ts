@@ -13,12 +13,25 @@ import { test, expect, type Page } from "@playwright/test";
 const ROUTES: { path: string; name: string }[] = [
   { path: "/", name: "home" },
   { path: "/settings", name: "settings" },
+  { path: "/report", name: "report" },
 ];
 
 /** 데이터가 필요한 화면용 localStorage 시드(앱에 맞게 채워라). 앱 스크립트보다 먼저 실행된다. */
 async function seed(page: Page): Promise<void> {
   await page.addInitScript(() => {
-    // window.localStorage.setItem("MY_STORAGE_KEY", JSON.stringify({ /* ... */ }));
+    const deficits = [60, 120, 0, 60, 60, 0, 60];
+    const records = deficits.map((deficitMin, i) => ({
+      id: `seed-${i}`,
+      date: `2026-07-2${i}`,
+      bedTime: "00:00",
+      wakeTime: "07:00",
+      actualSleepMin: 420 - deficitMin,
+      deficitMin,
+      createdAt: Date.now(),
+    }));
+    window.localStorage.setItem("sdt.records", JSON.stringify(records));
+    const today = new Date().toISOString().split("T")[0];
+    window.localStorage.setItem("sdt.rewardUnlock", JSON.stringify({ report: today }));
   });
 }
 
