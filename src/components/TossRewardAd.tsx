@@ -16,6 +16,11 @@ interface TossRewardAdProps {
   buttonText?: string;
   /** 광고 시청 완료 콜백 */
   onRewarded?: () => void;
+  /**
+   * 광고 로드/재생 실패 콜백. 지정 시 실패해도 자동 언락하지 않고 이 콜백만 호출한다
+   * (호출부에서 Toast 등으로 안내). 미지정 시 기존 동작(자동 언락)을 유지한다.
+   */
+  onError?: () => void;
   /** 광고 로드 타임아웃 (ms). 초과 시 자동 언락 */
   timeoutMs?: number;
 }
@@ -40,6 +45,7 @@ export function TossRewardAd({
   description = "광고를 시청하면 결과를 확인할 수 있어요",
   buttonText = "광고 보고 확인하기",
   onRewarded,
+  onError,
   timeoutMs = 15000,
 }: TossRewardAdProps) {
   const [unlocked, setUnlocked] = useState(false);
@@ -54,12 +60,21 @@ export function TossRewardAd({
         slotId,
         onEvent: () => setAdLoaded(true),
         onError: () => {
-          // Load failed (e.g., local browser) — auto-unlock
+          // Load failed (e.g., local browser)
+          if (onError) {
+            onError();
+            return;
+          }
+          // No onError handler — fall back to auto-unlock (dev/local convenience)
           setUnlocked(true);
           onRewarded?.();
         },
       } as Parameters<typeof loadFullScreenAd>[0]);
     } catch {
+      if (onError) {
+        onError();
+        return;
+      }
       // SDK not available (e.g., jsdom) — auto-unlock
       setUnlocked(true);
       onRewarded?.();
@@ -102,18 +117,25 @@ export function TossRewardAd({
         },
         onError: () => {
           if (timeoutRef.current) clearTimeout(timeoutRef.current);
+          setIsShowing(false);
+          if (onError) {
+            onError();
+            return;
+          }
           // Playback failed — unlock as fallback
           setUnlocked(true);
-          setIsShowing(false);
           onRewarded?.();
         },
       } as Parameters<typeof showFullScreenAd>[0]);
     } catch {
-      // SDK call threw — unlock
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
-      setUnlocked(true);
       setIsShowing(false);
-      onRewarded?.();
+      if (onError) {
+        onError();
+        return;
+      }
+      // SDK call threw — unlock
+      setUnlocked(true);
     }
   };
 

@@ -83,6 +83,7 @@ export type LS_KEYS =
     useDashboard.ts
     useReward.ts
     useTodayRecord.ts
+    useWeeklyReport.ts
   lib/
     calc.ts
     records.ts
@@ -94,6 +95,8 @@ export type LS_KEYS =
   main.tsx
   pages/
     Home.tsx
+    RecordPage.tsx
+    ReportPage.tsx
     __TdsGallery.tsx
   styles/
     globals.css
@@ -131,6 +134,9 @@ export type LS_KEYS =
   lib/settingsStore.ts → imports: lib/types, lib/storage
   lib/storage.ts → imports: lib/types
   lib/streak.ts → imports: lib/types, lib/storage
+  pages/Home.tsx → imports: lib/types, hooks/useDashboard
+  pages/RecordPage.tsx → imports: lib/types, hooks/useTodayRecord, lib/records, lib/streak, lib/calc, lib/utils, components/ScreenScaffold, components/BottomCTA, components/Card
+  pages/ReportPage.tsx → imports: hooks/useWeeklyReport, hooks/useReward, components/ScreenScaffold, components/Card, components/MiniBar, components/Amount, components/StateView, components/TossRewardAd, components/AdSlot, components/FloatingTabBar
 CRITICAL: Before creating any new function, type, or component, check the list above. If something similar exists, import and use it.
 
 ## Already Implemented (do NOT duplicate or overwrite)

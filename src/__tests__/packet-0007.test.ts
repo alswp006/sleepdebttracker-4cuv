@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import React from "react";
 import { screen, fireEvent } from "@testing-library/react";
-import { mockAll } from "@/__tests__/__helpers__/mocks";
+import { mockTds, mockAppsInToss, mockRouter } from "@/__tests__/__helpers__/mocks";
 import { renderWithRouter } from "@/__tests__/__helpers__/test-utils";
 
 // ============================================================================
@@ -14,7 +14,12 @@ import { renderWithRouter } from "@/__tests__/__helpers__/test-utils";
 // useWeeklyReport 훅에 위임(Home/useDashboard와 동일한 분리 패턴)하고,
 // 이 패킷은 ReportPage의 조립/분기 로직만 격리 테스트한다.
 
-mockAll();
+// NOTE: mockAll()의 mockTossRewardAd()는 이 파일이 아래에서 정의하는 TossRewardAd
+// 전용 목(리워드 게이트+광고 실패 시뮬레이션 버튼)과 같은 모듈을 다시 목킹해 충돌한다
+// (마지막에 등록된 쪽이 실제 로드 시점에 적용됨). 이 화면 테스트에 필요한 목만 개별 호출한다.
+mockTds();
+mockAppsInToss();
+mockRouter();
 
 const mockUseWeeklyReport = vi.fn();
 vi.mock("@/hooks/useWeeklyReport", () => ({
