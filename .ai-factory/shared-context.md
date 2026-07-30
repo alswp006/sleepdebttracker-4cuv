@@ -80,6 +80,9 @@ export type LS_KEYS =
     TossPurchase.tsx
     TossRewardAd.tsx
   hooks/
+    useDashboard.ts
+    useReward.ts
+    useTodayRecord.ts
   lib/
     calc.ts
     records.ts
@@ -134,3 +137,4 @@ CRITICAL: Before creating any new function, type, or component, check the list a
 - 0001: 전역 타입 & RouteState 계약 정의 (files: src/lib/types.ts)
 - 0002: localStorage 안전 헬퍼 + 계산 모듈 (files: src/lib/storage.ts, src/lib/calc.ts)
 - 0003: 도메인 CRUD: 기록·스트릭·설정/유형/리워드 (files: src/lib/records.ts, src/lib/streak.ts, src/lib/settingsStore.ts)
+- 0004: 화면용 서비스 훅 레이어 (files: src/hooks/useDashboard.ts, src/hooks/useReward.ts, src/hooks/useTodayRecord.ts)
